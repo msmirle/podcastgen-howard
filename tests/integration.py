@@ -52,12 +52,16 @@ def config(container):
     ))
 
 
+def base_url(name):
+    port = json.loads(docker("inspect", name).stdout)[0]["NetworkSettings"]["Ports"]["80/tcp"][0]["HostPort"]
+    return f"http://127.0.0.1:{port}/"
+
+
 def start():
     name = PREFIX + "-" + str(len(CONTAINERS))
     CONTAINERS.append(name)
     docker("run", "-d", "--name", name, "-p", "127.0.0.1::80", *mounts(), IMAGE)
-    port = json.loads(docker("inspect", name).stdout)[0]["NetworkSettings"]["Ports"]["80/tcp"][0]["HostPort"]
-    base = f"http://127.0.0.1:{port}/"
+    base = base_url(name)
     for _ in range(90):
         state = json.loads(docker("inspect", name).stdout)[0]["State"]
         if not state["Running"]:
@@ -150,6 +154,7 @@ def main():
     upload_limit(container, base)
 
     docker("restart", container)
+    base = base_url(container)
     for _ in range(60):
         try:
             request(browser, base, "healthz.php")
