@@ -6,7 +6,7 @@ Prebuilt **PodcastGenerator 3.2.9** for Linux x86-64:
 ghcr.io/msmirle/podcastgen-docker:3.2.9
 ```
 
-The server needs Docker Engine and the Compose plugin, not Make, PHP, or unzip.
+The server needs Docker Engine and the Compose plugin, not Make, PHP, Git, or unzip.
 Images are built and tested in GitHub Actions before publishing to GHCR. A weekly
 rebuild picks up PHP/Debian fixes; pulling/recreating the container applies them.
 
@@ -18,15 +18,32 @@ rebuild picks up PHP/Debian fixes; pulling/recreating the container applies them
 > URL only while that endpoint remains reachable. Disable external access during
 > setup and migration. No reverse proxy or TLS termination is included here.
 
+## Deployment layout
+
+The Linux server needs only:
+
+```text
+~/docker/podcastgen-docker/
+    compose.yaml
+    .env
+    data/
+```
+
+The image is built on GitHub, not on the server. Build files, tests, and a Git
+checkout are not needed in the deployment directory. The repository still
+contains those files for development and CI.
+
 ## What survives container replacement?
 
 | Host location | Container location | Contents |
 | --- | --- | --- |
-| `${HOME}/docker/podcastgen` | `/data` | Settings, artwork, generated RSS, categories, buttons, freebox, migration backups |
+| `./data` | `/data` | Settings, artwork, generated RSS, categories, buttons, freebox, migration backups |
 | `/mnt/external-8tb/howard-stern` | `/data/media` | Episodes **and their XML sidecar metadata** |
 
-These are the existing deployment's locations, configurable in `.env`. The media
-mount is separate: backing up the first directory alone does **not** back up episodes.
+`./data` is relative to the directory containing `compose.yaml`, not the home
+directory or the container. `DATA_DIR` can override it for existing installations
+or rehearsals. The media path is configured separately through `MEDIA_DIR` in
+`.env`: backing up `./data` alone does **not** back up episodes.
 The application code comes from the image. Old PHP files in the host directory
 are ignored, not served, overwritten, or deleted. Existing `custom/custom.ini` is
 not loaded; the required upload settings are built into the image.
@@ -36,22 +53,34 @@ No actual configuration, credentials, artwork, or media belongs in this reposito
 
 ## First deployment
 
-Run on the **Linux Docker server**:
+For a **new deployment**, run on the **Linux Docker server**. These commands create
+a new directory and refuse to reuse an existing one, protecting any existing
+configuration. Use `curl` for the two downloads (or download the files manually):
 
 ```bash
-git clone https://github.com/msmirle/podcastgen-docker.git
-cd podcastgen-docker
-cp .env.example .env
+(
+  set -e
+  mkdir -p "$HOME/docker"
+  mkdir "$HOME/docker/podcastgen-docker"
+  cd "$HOME/docker/podcastgen-docker"
+  curl --fail --location https://raw.githubusercontent.com/msmirle/podcastgen-docker/main/compose.yaml --output compose.yaml
+  curl --fail --location https://raw.githubusercontent.com/msmirle/podcastgen-docker/main/.env.example --output .env
+  mkdir data
+)
+```
+
+After both downloads succeed:
+
+```bash
+cd "$HOME/docker/podcastgen-docker"
 nano .env
 ```
 
-Verify `DATA_DIR` and `MEDIA_DIR` point to the intended directories. `${HOME}`
-expands to the account running Compose; use an absolute path if running as a
-different account. For a fresh install, create the directories first:
+Keep `DATA_DIR=./data` for the layout above. Verify `MEDIA_DIR` points to your
+existing external episode directory; episodes do not move into the project.
+Check the external disk before starting:
 
 ```bash
-mkdir -p "$HOME/docker/podcastgen/images"
-# Verify the external disk is mounted before using its media directory.
 findmnt /mnt/external-8tb
 test -d /mnt/external-8tb/howard-stern
 ```
@@ -177,6 +206,23 @@ the public URL. It never replaces a restored configuration with defaults.
 For rollback after a migration, stop the new container and restore **both** original
 host backups, then use the old deployment/image. A newer configuration is not
 backwards compatible. Never just downgrade the image against migrated data.
+
+## Consolidate an existing deployment
+
+Changing `DATA_DIR` does not move any files. Back up the current settings/artwork
+directory, stop this project's service with `docker compose stop app`, and move
+the complete current data directory into the deployment's `./data` directory.
+Do not overwrite or merge an existing destination without checking it first.
+Leave the external media directory untouched, set `DATA_DIR=./data` in `.env`,
+and run `docker compose up -d --wait`. No application migration is needed for
+this host-directory move.
+
+Verify the container's bind mounts, admin login, artwork, feed, and an episode
+download before removing any old copies. If the deployment was originally a Git
+checkout, archive its source/build files and Git metadata after verifying the
+new layout. Only `compose.yaml`, `.env`, and `data/` need remain at the top level;
+private archives can be retained under `data/backups/`. Keep independent backups
+separate from the live data directory.
 
 ## Updates and operations
 
