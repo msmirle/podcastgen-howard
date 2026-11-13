@@ -11,7 +11,6 @@ import urllib.error
 import urllib.parse
 import urllib.request
 import uuid
-import wave
 import xml.etree.ElementTree as ET
 
 
@@ -134,14 +133,11 @@ def upload_limit(container, base):
 def cron_summary(container, base):
     key = config(container)["installationKey"]
     path = "pg-cron.php?" + urllib.parse.urlencode({"key": key})
-    filename = "2020-01-01_cron-sample.wav"
+    filename = "2020-01-01_cron-sample.mp3"
     with tempfile.TemporaryDirectory() as directory:
         audio = pathlib.Path(directory) / filename
-        with wave.open(str(audio), "wb") as stream:
-            stream.setnchannels(1)
-            stream.setsampwidth(2)
-            stream.setframerate(8000)
-            stream.writeframes(b"\0\0" * 8000)
+        # MPEG-1 Layer III frames at 128 kbps and 44.1 kHz.
+        audio.write_bytes((b"\xff\xfb\x90\x00" + b"\0" * 413) * 40)
         docker("cp", str(audio), f"{container}:/data/media/{filename}")
 
     body, _ = request(client(), base, path)
@@ -184,7 +180,7 @@ def cron_summary(container, base):
     finally:
         php(container, "chmod('/data/feed.xml', 0640);")
     php(container, r"""
-        unlink('/data/media/2020-01-01_cron-sample.wav');
+        unlink('/data/media/2020-01-01_cron-sample.mp3');
         unlink('/data/media/2020-01-01_cron-sample.xml');
         require 'core/include.php';
         if (generateRSS() === false) {
