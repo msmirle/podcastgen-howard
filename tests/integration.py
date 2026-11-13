@@ -189,6 +189,7 @@ def main():
         $c['theme_path'] = 'themes/flatly/';
         $c['scriptlang'] = 'en_EN';
         $c['link'] = '?name=';
+        $c['websub_server'] = '';
         $c['podcast_title'] = "A host's podcast";
         unset($c['users_json']);
         writeConfiguration('/data/config.php', $c);
@@ -228,6 +229,7 @@ def main():
         "username": "testadmin", "password": PASSWORD,
     })
     assert location.endswith("/admin/index.php"), location
+    request(browser, base, "admin/episodes_regenerate.php")
     feed = ET.fromstring(request(browser, base, "feed.php")[0])
     enclosure = feed.find("channel/item/enclosure")
     assert enclosure is not None
