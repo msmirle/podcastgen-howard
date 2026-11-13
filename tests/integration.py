@@ -157,7 +157,8 @@ def main():
         except OSError:
             time.sleep(1)
     else:
-        raise AssertionError("Restart failed")
+        logs = docker("logs", container)
+        raise AssertionError("Restart failed:\n" + logs.stdout + logs.stderr)
     assert config(container)["url"] == PUBLIC_URL
     stop(container)
     container, base = start()
@@ -265,7 +266,9 @@ try:
     main()
 finally:
     for name in CONTAINERS:
-        docker("logs", name, check=False)
+        if sys.exc_info()[0] is not None:
+            logs = docker("logs", name, check=False)
+            print(logs.stdout + logs.stderr, file=sys.stderr)
         docker("rm", "-f", name, check=False)
     for volume in reversed(VOLUMES):
         docker("volume", "rm", volume, check=False)

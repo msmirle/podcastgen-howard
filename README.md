@@ -186,7 +186,7 @@ docker compose down
 
 Stopping/removing containers does not remove bind-mounted host data. Back up
 before updating. The `3.2.9` tag receives runtime rebuilds; use a published
-`sha-<commit>` tag or image digest when you need an immutable deployment.
+`build-<run-id>-<attempt>` tag or image digest when you need an immutable deployment.
 
 Built-in PHP limits: **1000 MiB per file**, **1024 MiB POST**, **2000 MiB memory**.
 The POST limit intentionally leaves room for multipart overhead. Apache's body

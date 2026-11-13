@@ -3,12 +3,20 @@ declare(strict_types=1);
 
 function readConfiguration(string $path): array
 {
-    return (static function (string $file): array {
+    $config = (static function (string $file): array {
         require $file;
         $values = get_defined_vars();
         unset($values['file']);
         return $values;
     })($path);
+    if (isset($config['users_json'])) {
+        // The setup wizard writes extra JSON escapes that its own parser removes.
+        require_once '/opt/podcastgen/core/misc/configsystem.php';
+        $parsed = getConfig($path);
+        $config['users_json'] = $parsed['users_json']
+            ?? throw new RuntimeException('Cannot read admin account configuration.');
+    }
+    return $config;
 }
 
 function validateLayout(array $config): void
