@@ -31,12 +31,12 @@ def docker(*args, input=None, check=True):
     return result
 
 
-def mounts():
+def mounts(uid=1000):
     return [
         "--mount", f"type=volume,source={VOLUMES[0]},target=/data",
         "--mount", f"type=volume,source={VOLUMES[1]},target=/data/media",
         "-e", f"PUBLIC_URL={PUBLIC_URL}",
-        "-e", "PUID=1001", "-e", "PGID=1001",
+        "-e", f"PUID={uid}", "-e", f"PGID={uid}",
     ]
 
 
@@ -57,10 +57,10 @@ def base_url(name):
     return f"http://127.0.0.1:{port}/"
 
 
-def start():
+def start(uid=1000):
     name = PREFIX + "-" + str(len(CONTAINERS))
     CONTAINERS.append(name)
-    docker("run", "-d", "--name", name, "-p", "127.0.0.1::80", *mounts(), IMAGE)
+    docker("run", "-d", "--name", name, "-p", "127.0.0.1::80", *mounts(uid), IMAGE)
     base = base_url(name)
     for _ in range(90):
         state = json.loads(docker("inspect", name).stdout)[0]["State"]
@@ -194,7 +194,7 @@ def cron_summary(container, base):
 def main():
     for volume in VOLUMES:
         docker("volume", "create", volume)
-    container, base = start()
+    container, base = start(uid=33)
     browser = client()
     request(browser, base, "setup/step1.php?done=1", {"lang": "en_US"})
     request(browser, base, "setup/step3.php?create=1", {
@@ -204,7 +204,7 @@ def main():
     assert original["podcastgen_version"] == "3.2.9"
     ET.fromstring(request(browser, base, "feed.xml")[0])
     cron_summary(container, base)
-    php(container, r"""
+    docker("exec", "--user", "www-data", container, "php", "-r", r"""
         file_put_contents('/data/images/persistence.txt', 'artwork-marker');
         file_put_contents('/data/media/persistence.txt', 'episode-marker');
         file_put_contents('/data/media/blocked.php', '<?php echo "should-not-run";');
@@ -228,6 +228,7 @@ def main():
         raise AssertionError("Restart failed:\n" + logs.stdout + logs.stderr)
     assert config(container)["url"] == PUBLIC_URL
     stop(container)
+    docker("run", "--rm", *mounts(), IMAGE, "fix-permissions")
     container, base = start()
     browser = client()
     assert config(container)["users_json"] == original["users_json"]
@@ -237,8 +238,16 @@ def main():
         "username": "testadmin", "password": PASSWORD,
     })
     assert location.endswith("/admin/index.php"), location
-    assert php(container, "echo fileowner('/data/config.php');").strip() == "1001"
-    print("PASS: same-container restart, replacement-container persistence, custom UID, and admin login")
+    assert php(container, "echo fileowner('/data/config.php');").strip() == "1000"
+    assert php(container, "echo filegroup('/data/config.php');").strip() == "1000"
+    docker("exec", "--user", "www-data", container, "php", "-r", r"""
+        foreach (['/data/images/persistence.txt', '/data/media/persistence.txt'] as $file) {
+            if (!is_writable($file)) {
+                throw new RuntimeException("Existing file is not writable: " . $file);
+            }
+        }
+    """)
+    print("PASS: restart, persistence, 33:33 to 1000:1000 permission repair, and admin login")
 
     # Match the old installation's theme, computed permalink, and MD5 credentials.
     php(container, r"""

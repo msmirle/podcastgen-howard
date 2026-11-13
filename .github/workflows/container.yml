@@ -24,7 +24,7 @@ jobs:
       - name: Validate Compose
         run: |
           docker compose --env-file .env.example config --quiet
-          DATA_DIR=/tmp/pg-data MEDIA_DIR=/tmp/pg-media docker compose config --quiet
+          CONFIG_DIR=/tmp/pg-data MEDIA_DIR=/tmp/pg-media docker compose --env-file .env.example config --quiet
       - name: Build test image
         uses: docker/build-push-action@v6
         with:

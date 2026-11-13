@@ -3,7 +3,7 @@
 Prebuilt **PodcastGenerator 3.2.9** for Linux x86-64:
 
 ```text
-ghcr.io/msmirle/podcastgen-howard:3.2.9
+ghcr.io/msmirle/podcastgen-howard:latest
 ```
 
 The server needs Docker Engine and the Compose plugin, not Make, PHP, Git, or unzip.
@@ -33,9 +33,10 @@ The image is built on GitHub, not on the server. Build files, tests, and a Git
 checkout are not needed in the deployment directory. The repository still
 contains those files for development and CI.
 
-The Compose project is `podcastgen-howard`, with service `app`, container
-`podcastgen-howard-app-1`, and network `podcastgen-howard_default`. A separate
-rehearsal can override the project name using `docker compose -p <test-name>`.
+The Compose project and container are both named `podcastgen-howard`, with service
+`app` and network `podcastgen-howard_default`. For a separate rehearsal, use
+`docker compose -p <test-name>` and change or remove `container_name` in its
+separate Compose file to avoid a container-name conflict.
 These names do not change the application's public URL or external media path.
 
 ## What survives container replacement?
@@ -46,7 +47,7 @@ These names do not change the application's public URL or external media path.
 | `/mnt/external-8tb/howard-stern` | `/data/media` | Episodes **and their XML sidecar metadata** |
 
 `./data` is relative to the directory containing `compose.yaml`, not the home
-directory or the container. `DATA_DIR` can override it for existing installations
+directory or the container. `CONFIG_DIR` can override it for existing installations
 or rehearsals. The media path is configured separately through `MEDIA_DIR` in
 `.env`: backing up `./data` alone does **not** back up episodes.
 The application code comes from the image. Old PHP files in the host directory
@@ -81,7 +82,7 @@ cd "$HOME/docker/podcastgen-howard"
 nano .env
 ```
 
-Keep `DATA_DIR=./data` for the layout above. Verify `MEDIA_DIR` points to your
+Keep `CONFIG_DIR=./data` for the layout above. Verify `MEDIA_DIR` points to your
 existing external episode directory; episodes do not move into the project.
 Check the external disk before starting:
 
@@ -91,10 +92,28 @@ test -d /mnt/external-8tb/howard-stern
 ```
 
 If you are starting fresh without an external media disk, create a media directory
-where you want it and set `MEDIA_DIR` to that absolute path. Compose deliberately
-refuses missing host paths instead of silently creating empty storage.
+where you want it and set `MEDIA_DIR` to that absolute path. The short volume
+syntax can automatically create missing host directories. Check both paths and
+the external disk before starting so a typo or missing mount does not use empty
+local storage.
 
-Keep `PORT=6766` and your existing DNS/router port forwarding to retain an existing
+All deployment values live in `.env`, using plain `${VARIABLE}` references in
+Compose:
+
+```dotenv
+PUID=1000
+PGID=1000
+TZ=UTC
+CONFIG_DIR=./data
+MEDIA_DIR=/mnt/external-8tb/howard-stern
+WEBUI_PORT=6766
+PUBLIC_URL=
+```
+
+Set `PUID`/`PGID` to your Linux user's numeric `id -u` / `id -g` if they differ
+from `1000:1000`.
+
+Keep `WEBUI_PORT=6766` and your existing DNS/router port forwarding to retain an existing
 feed URL. `PUBLIC_URL` is optional: leave it blank to preserve the restored URL,
 or set it explicitly to the original public base URL including a trailing slash.
 It is applied to an existing configuration at container startup, including after
@@ -147,7 +166,8 @@ password. For 3.1/3.2, existing modern account hashes are retained.
    a substitute for this backup.
 2. **Rehearse on a copy first.** Copy the application/settings/artwork and media
    directories to separate test locations. Point a test `.env` at both copies,
-   choose a different `PORT`, and keep `PUBLIC_URL` at the original public URL.
+   choose a different `WEBUI_PORT`, and keep `PUBLIC_URL` at the original public URL.
+   Use a separate Compose project and a distinct `container_name` as described above.
    Never mount the live media directory for the rehearsal.
 3. Pull and migrate (one-off Compose runs do not publish service ports):
 
@@ -158,7 +178,7 @@ password. For 3.1/3.2, existing modern account hashes are retained.
 
    Enter the new password when prompted. It is not put into Compose, environment
    variables, or command-line arguments. Each configuration stage is saved under
-   `DATA_DIR/backups/migration-.../`; the original is saved byte-for-byte before
+   `CONFIG_DIR/backups/migration-.../`; the original is saved byte-for-byte before
    replacement. Failure leaves the original configuration unchanged.
 4. Repair existing ownership **once if necessary**:
 
@@ -182,7 +202,7 @@ password. For 3.1/3.2, existing modern account hashes are retained.
    GUIDs, and an actual episode download. The existing static feed is left intact
    by migration. Regenerate RSS through the admin UI and check it again.
 6. Once the copy passes, repeat the same backed-up procedure on production with
-   the original host paths and `PORT=6766`. Stop/remove the old container before
+   the original host paths and `WEBUI_PORT=6766`. Stop/remove the old container before
    starting the replacement. Keep public access blocked until validation passes.
 
 Configuration paths must be `media/`, `images/`, an empty `feed_dir`, and (for
@@ -214,11 +234,11 @@ backwards compatible. Never just downgrade the image against migrated data.
 
 ## Consolidate an existing deployment
 
-Changing `DATA_DIR` does not move any files. Back up the current settings/artwork
+Changing `CONFIG_DIR` does not move any files. Back up the current settings/artwork
 directory, stop this project's service with `docker compose stop app`, and move
 the complete current data directory into the deployment's `./data` directory.
 Do not overwrite or merge an existing destination without checking it first.
-Leave the external media directory untouched, set `DATA_DIR=./data` in `.env`,
+Leave the external media directory untouched, set `CONFIG_DIR=./data` in `.env`,
 and run `docker compose up -d --wait`. No application migration is needed for
 this host-directory move.
 
@@ -228,6 +248,27 @@ checkout, archive its source/build files and Git metadata after verifying the
 new layout. Only `compose.yaml`, `.env`, and `data/` need remain at the top level;
 private archives can be retained under `data/backups/`. Keep independent backups
 separate from the live data directory.
+
+## Switch an existing deployment to the simpler template
+
+Back up `compose.yaml` and `.env` before replacing them, and stop the existing
+service using its current Compose file. In `.env`, rename `DATA_DIR` to
+`CONFIG_DIR` and `PORT` to `WEBUI_PORT`, preserving their values. Keep `MEDIA_DIR`,
+`TZ`, and your current `PUBLIC_URL`. Remove `IMAGE_TAG`: the new Compose file uses
+the published `latest` tag directly.
+
+If changing `PUID`/`PGID` from `33:33` to `1000:1000`, repair ownership once with
+the new settings before starting the service:
+
+```bash
+docker compose run --rm app fix-permissions
+docker compose up -d --wait
+```
+
+This changes ownership of existing artwork, episodes, and XML metadata without
+moving the files. It can take time on a large library and affects other host
+processes sharing these files. Changing back to different IDs requires the same
+repair. Verify admin login, artwork, episode playback, and cron regeneration.
 
 ## Updates and operations
 
@@ -240,8 +281,9 @@ docker compose down
 ```
 
 Stopping/removing containers does not remove bind-mounted host data. Back up
-before updating. The `3.2.9` tag receives runtime rebuilds; use a published
-`build-<run-id>-<attempt>` tag or image digest when you need an immutable deployment.
+before updating. The `latest` tag receives tested runtime rebuilds. For an
+immutable deployment, change `image` in Compose to a published
+`build-<run-id>-<attempt>` tag or image digest.
 
 Built-in PHP limits: **1000 MiB per file**, **1024 MiB POST**, **2000 MiB memory**.
 The POST limit intentionally leaves room for multipart overhead. Apache's body
@@ -249,8 +291,9 @@ limit is 1100 MiB; upload/input/execution timeouts are 30 minutes. Any future
 reverse proxy must also allow these sizes and timeouts. Modern PodcastGenerator
 does not need the legacy `$max_upload_form_size` setting.
 
-`PUID`/`PGID` default to Apache's `33:33`, or set them to your Linux user's numeric
-`id -u` / `id -g`. The entrypoint requires root to initialize ownership; Apache
+The example `.env` uses `PUID=1000` and `PGID=1000`. Without these environment
+variables, the image itself retains Apache's `33:33` defaults for direct Docker
+runs. The entrypoint requires root to initialize ownership; Apache
 serves requests as the unprivileged user. Rootless/user-namespace-remapped Docker
 and NFS root-squash may need host-side permission setup.
 
@@ -280,7 +323,7 @@ python3 tests/integration.py podcastgen-howard:test
 
 Tests use disposable, uniquely named Docker volumes and loopback-only ports.
 They exercise the real setup wizard, admin login, restart/replacement persistence,
-custom UID ownership, an **actual 1000 MiB multipart upload**, blocked private and
+ownership repair from `33:33` to `1000:1000`, an **actual 1000 MiB multipart upload**, blocked private and
 uploaded-script paths, staged legacy backups/migrations, RSS enclosure URLs,
 GUID preservation, unsupported-version rejection, and cron result/error summaries.
 
