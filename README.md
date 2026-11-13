@@ -1,9 +1,9 @@
-# PodcastGenerator on Docker Compose
+# podcastgen-howard
 
 Prebuilt **PodcastGenerator 3.2.9** for Linux x86-64:
 
 ```text
-ghcr.io/msmirle/podcastgen-docker:3.2.9
+ghcr.io/msmirle/podcastgen-howard:3.2.9
 ```
 
 The server needs Docker Engine and the Compose plugin, not Make, PHP, Git, or unzip.
@@ -23,7 +23,7 @@ rebuild picks up PHP/Debian fixes; pulling/recreating the container applies them
 The Linux server needs only:
 
 ```text
-~/docker/podcastgen-docker/
+~/docker/podcastgen-howard/
     compose.yaml
     .env
     data/
@@ -32,6 +32,11 @@ The Linux server needs only:
 The image is built on GitHub, not on the server. Build files, tests, and a Git
 checkout are not needed in the deployment directory. The repository still
 contains those files for development and CI.
+
+The Compose project is `podcastgen-howard`, with service `app`, container
+`podcastgen-howard-app-1`, and network `podcastgen-howard_default`. A separate
+rehearsal can override the project name using `docker compose -p <test-name>`.
+These names do not change the application's public URL or external media path.
 
 ## What survives container replacement?
 
@@ -61,10 +66,10 @@ configuration. Use `curl` for the two downloads (or download the files manually)
 (
   set -e
   mkdir -p "$HOME/docker"
-  mkdir "$HOME/docker/podcastgen-docker"
-  cd "$HOME/docker/podcastgen-docker"
-  curl --fail --location https://raw.githubusercontent.com/msmirle/podcastgen-docker/main/compose.yaml --output compose.yaml
-  curl --fail --location https://raw.githubusercontent.com/msmirle/podcastgen-docker/main/.env.example --output .env
+  mkdir "$HOME/docker/podcastgen-howard"
+  cd "$HOME/docker/podcastgen-howard"
+  curl --fail --location https://raw.githubusercontent.com/msmirle/podcastgen-howard/main/compose.yaml --output compose.yaml
+  curl --fail --location https://raw.githubusercontent.com/msmirle/podcastgen-howard/main/.env.example --output .env
   mkdir data
 )
 ```
@@ -72,7 +77,7 @@ configuration. Use `curl` for the two downloads (or download the files manually)
 After both downloads succeed:
 
 ```bash
-cd "$HOME/docker/podcastgen-docker"
+cd "$HOME/docker/podcastgen-howard"
 nano .env
 ```
 
@@ -269,8 +274,8 @@ private because possession of its key allows triggering the job.
 ## Build, test, and publish
 
 ```bash
-docker build --pull -t podcastgen:test .
-python3 tests/integration.py podcastgen:test
+docker build --pull -t podcastgen-howard:test .
+python3 tests/integration.py podcastgen-howard:test
 ```
 
 Tests use disposable, uniquely named Docker volumes and loopback-only ports.

@@ -33,9 +33,9 @@ RUN a2enconf podcastgen \
     && cp /usr/local/lib/podcastgen/pg-cron.php /var/www/html/pg-cron.php \
     && cp /usr/local/lib/podcastgen/healthz.php /var/www/html/healthz.php
 
-LABEL org.opencontainers.image.title="PodcastGenerator" \
+LABEL org.opencontainers.image.title="podcastgen-howard" \
       org.opencontainers.image.description="PodcastGenerator with persistent host storage and offline migration" \
-      org.opencontainers.image.source="https://github.com/msmirle/podcastgen-docker" \
+      org.opencontainers.image.source="https://github.com/msmirle/podcastgen-howard" \
       org.opencontainers.image.version="${PG_VERSION}"
 
 WORKDIR /var/www/html

@@ -1,6 +1,8 @@
+name: podcastgen-howard
+
 services:
   app:
-    image: ghcr.io/msmirle/podcastgen-docker:${IMAGE_TAG:-3.2.9}
+    image: ghcr.io/msmirle/podcastgen-howard:${IMAGE_TAG:-3.2.9}
     restart: unless-stopped
     ports:
       - "${PORT:-6766}:80"

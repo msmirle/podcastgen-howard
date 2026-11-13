@@ -14,8 +14,8 @@ import uuid
 import xml.etree.ElementTree as ET
 
 
-IMAGE = sys.argv[1] if len(sys.argv) > 1 else "podcastgen:test"
-PREFIX = "podcastgen-test-" + uuid.uuid4().hex[:12]
+IMAGE = sys.argv[1] if len(sys.argv) > 1 else "podcastgen-howard:test"
+PREFIX = "podcastgen-howard-test-" + uuid.uuid4().hex[:12]
 PASSWORD = "Synthetic-test-password-42"
 PUBLIC_URL = "http://podcast.example.test:6766/"
 VOLUMES = [PREFIX + "-data", PREFIX + "-media"]
