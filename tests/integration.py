@@ -193,8 +193,14 @@ def main():
         $c['podcast_title'] = "A host's podcast";
         unset($c['users_json']);
         writeConfiguration('/data/config.php', $c);
-        file_put_contents('/data/config.php', '$link = $url . "?name=";' . "\n", FILE_APPEND);
+        file_put_contents('/data/config.php',
+            '$link = $url . "?name=";' . "\n"
+            . '$enablesocialnetworks = array("facebook" => "yes", "twitter" => "no");' . "\n",
+            FILE_APPEND);
         file_put_contents('/data/feed.xml', 'original-feed-marker');
+        unlink('/data/buttons.xml');
+        unlink('/data/customtags.xml');
+        file_put_contents('/data/freebox-content.txt', 'preserved-freebox');
         file_put_contents('/data/media/sample.mp3', 'ID3' . str_repeat("\0", 128));
         file_put_contents('/data/media/sample.xml', '<PodcastGenerator><episode>
             <titlePG>Migration sample</titlePG><shortdescPG>Test episode</shortdescPG>
@@ -218,12 +224,17 @@ def main():
     assert migrated["link"] == "?name=" and migrated["url"] == PUBLIC_URL
     assert migrated["podcast_title"] == "A host's podcast"
     assert migrated["scriptlang"] == "en_US"
+    assert "enablesocialnetworks" not in migrated
     assert php(container, r"""
         $backups = glob('/data/backups/migration-*');
         echo hash_file('sha256', $backups[0] . '/original.php');
     """) == legacy
     assert request(client(), base, "feed.xml")[0] == b"original-feed-marker"
     assert request(client(), base, "images/persistence.txt")[0] == b"artwork-marker"
+    buttons = ET.fromstring(request(client(), base, "buttons.xml")[0])
+    assert buttons.findtext("button/href") == "feed.xml"
+    ET.fromstring(request(client(), base, "customtags.xml")[0])
+    assert request(client(), base, "freebox-content.txt")[0] == b"preserved-freebox"
     browser = client()
     _, location = request(browser, base, "admin/login.php?login=1", {
         "username": "testadmin", "password": PASSWORD,

@@ -97,6 +97,10 @@ implements those configuration transformations offline rather than running
 obsolete web applications. It preserves artwork/media paths, feed URL, episode
 files and XML, and existing GUIDs. Old 2.7 themes (including Flatly) switch to the
 current default theme; custom theme migration is not included.
+The obsolete 2.7 `enablesocialnetworks` flags are retired during migration and
+remain available in the original configuration backup.
+Missing application metadata (such as buttons and custom RSS tags) is initialized
+with upstream defaults without replacing existing files.
 
 The helper avoids known legacy converter problems with artwork paths and account
 JSON. For 2.7/3.0, it asks for a **new admin password**, retaining the username;

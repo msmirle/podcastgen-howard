@@ -73,6 +73,7 @@ try {
     }
     fwrite(STDOUT, "Configuration backups: $backup\n");
     if ($version === '2.7') {
+        unset($config['enablesocialnetworks']);
         // Legacy PHP configurations can build this value from $url.
         if (str_starts_with((string) $config['link'], (string) $config['url'])) {
             $config['link'] = substr($config['link'], strlen($config['url']));
@@ -120,6 +121,17 @@ try {
     $config['podcastgen_version'] = '3.2.9';
     $config = applyRuntimeSettings($config);
     writeConfiguration("$backup/3.2.9.php", $config);
+    require '/opt/podcastgen/setup/createstuff.php';
+    if (!chdir('/var/www/html/setup') || !createstuff()) {
+        throw new RuntimeException('Cannot initialize missing application metadata.');
+    }
+    foreach (['freebox-content.txt', 'buttons.xml', 'categories.xml', 'customtags.xml'] as $file) {
+        $metadata = '/data/' . $file;
+        if (!is_file($metadata) || !chown($metadata, 'www-data') || !chgrp($metadata, 'www-data')
+            || !chmod($metadata, 0640)) {
+            throw new RuntimeException("Cannot initialize metadata file $file.");
+        }
+    }
     writeConfiguration($path, $config);
     fwrite(STDOUT, "Migrated to 3.2.9. Artwork, media, episode XML, and the existing feed were not modified.\n");
 } catch (Throwable $error) {
