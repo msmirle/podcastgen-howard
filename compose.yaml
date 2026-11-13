@@ -1,0 +1,27 @@
+services:
+  app:
+    image: ghcr.io/msmirle/podcastgen-docker:${IMAGE_TAG:-3.2.9}
+    restart: unless-stopped
+    ports:
+      - "${PORT:-6766}:80"
+    environment:
+      TZ: ${TZ:-UTC}
+      PUBLIC_URL: ${PUBLIC_URL:-}
+      PUID: ${PUID:-33}
+      PGID: ${PGID:-33}
+    volumes:
+      - type: bind
+        source: ${DATA_DIR:?Set DATA_DIR in .env}
+        target: /data
+        bind:
+          create_host_path: false
+      - type: bind
+        source: ${MEDIA_DIR:?Set MEDIA_DIR in .env}
+        target: /data/media
+        bind:
+          create_host_path: false
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"

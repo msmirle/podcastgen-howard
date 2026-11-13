@@ -1,0 +1,9 @@
+.env
+.env.*
+!.env.example
+data/
+media/
+backups/
+config.php
+*.zip
+__pycache__/
