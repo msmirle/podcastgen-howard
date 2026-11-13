@@ -131,7 +131,8 @@ def upload_limit(container, base):
 
 
 def cron_summary(container, base):
-    key = config(container)["installationKey"]
+    settings = config(container)
+    key = settings["installationKey"]
     path = "pg-cron.php?" + urllib.parse.urlencode({"key": key})
     filename = "2020-01-01_cron-sample.mp3"
     with tempfile.TemporaryDirectory() as directory:
@@ -146,7 +147,7 @@ def cron_summary(container, base):
     assert b'<dd id="feed-total">1</dd>' in body
     assert key.encode() not in body
     feed = ET.fromstring(request(client(), base, "feed.xml")[0])
-    assert feed.find("channel/item/enclosure").attrib["url"] == PUBLIC_URL + "media/" + filename
+    assert feed.find("channel/item/enclosure").attrib["url"] == settings["url"] + "media/" + filename
 
     body, _ = request(client(), base, path)
     assert b'<dd id="new-episodes">0</dd>' in body
