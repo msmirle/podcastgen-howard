@@ -11,6 +11,7 @@ import urllib.error
 import urllib.parse
 import urllib.request
 import uuid
+import wave
 import xml.etree.ElementTree as ET
 
 
@@ -130,6 +131,69 @@ def upload_limit(container, base):
     print("PASS: actual 1000 MiB multipart upload through Apache and PHP")
 
 
+def cron_summary(container, base):
+    key = config(container)["installationKey"]
+    path = "pg-cron.php?" + urllib.parse.urlencode({"key": key})
+    filename = "2020-01-01_cron-sample.wav"
+    with tempfile.TemporaryDirectory() as directory:
+        audio = pathlib.Path(directory) / filename
+        with wave.open(str(audio), "wb") as stream:
+            stream.setnchannels(1)
+            stream.setsampwidth(2)
+            stream.setframerate(8000)
+            stream.writeframes(b"\0\0" * 8000)
+        docker("cp", str(audio), f"{container}:/data/media/{filename}")
+
+    body, _ = request(client(), base, path)
+    assert b"RSS feed regenerated" in body
+    assert b'<dd id="new-episodes">1</dd>' in body
+    assert b'<dd id="feed-total">1</dd>' in body
+    assert key.encode() not in body
+    feed = ET.fromstring(request(client(), base, "feed.xml")[0])
+    assert feed.find("channel/item/enclosure").attrib["url"] == PUBLIC_URL + "media/" + filename
+
+    body, _ = request(client(), base, path)
+    assert b'<dd id="new-episodes">0</dd>' in body
+    assert b'<dd id="feed-total">1</dd>' in body
+    assert b"No new episodes were found." in body
+
+    before = php(container, "echo hash_file('sha256', '/data/feed.xml');")
+    assert_status(base, "pg-cron.php?key=invalid", 403)
+    php(container, r"""
+        require 'core/misc/configsystem.php';
+        updateConfig('config.php', 'cronAutoIndex', '0');
+    """)
+    assert_status(base, path, 409)
+    assert php(container, "echo hash_file('sha256', '/data/feed.xml');") == before
+    php(container, r"""
+        require 'core/misc/configsystem.php';
+        updateConfig('config.php', 'cronAutoIndex', '1');
+        chmod('/data/feed.xml', 0444);
+    """)
+    try:
+        try:
+            request(client(), base, path)
+            raise AssertionError("Cron should report an unwritable feed as a failure")
+        except urllib.error.HTTPError as error:
+            assert error.code == 500
+            body = error.read()
+            assert b"RSS regeneration failed" in body
+            assert b"Check the container logs" in body
+            assert b"regenerated successfully" not in body
+            assert key.encode() not in body
+    finally:
+        php(container, "chmod('/data/feed.xml', 0640);")
+    php(container, r"""
+        unlink('/data/media/2020-01-01_cron-sample.wav');
+        unlink('/data/media/2020-01-01_cron-sample.xml');
+        require 'core/include.php';
+        if (generateRSS() === false) {
+            throw new RuntimeException('Cannot restore the test feed');
+        }
+    """)
+    print("PASS: cron summaries for new/no episodes, denied/disabled requests, and write failures")
+
+
 def main():
     for volume in VOLUMES:
         docker("volume", "create", volume)
@@ -142,6 +206,7 @@ def main():
     original = config(container)
     assert original["podcastgen_version"] == "3.2.9"
     ET.fromstring(request(browser, base, "feed.xml")[0])
+    cron_summary(container, base)
     php(container, r"""
         file_put_contents('/data/images/persistence.txt', 'artwork-marker');
         file_put_contents('/data/media/persistence.txt', 'episode-marker');

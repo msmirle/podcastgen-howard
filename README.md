@@ -203,6 +203,23 @@ does not need the legacy `$max_upload_form_size` setting.
 serves requests as the unprivileged user. Rootless/user-namespace-remapped Docker
 and NFS root-squash may need host-side permission setup.
 
+### Cron regeneration results
+
+Opening the existing cron URL from **Admin > Podcast Generator Configuration**
+now displays a results page instead of a blank response. The URL and key are
+unchanged. A successful response shows the number of newly indexed episodes and
+the total number in the regenerated feed, with an explicit message when no new
+episodes were found. Zero new episodes does not mean existing episode metadata
+was unchanged: the RSS feed is rebuilt on every successful run.
+
+The endpoint still scans media using upstream's indexing behavior, which can
+rename new files and create episode XML. Invalid/missing keys return HTTP 403,
+disabled indexing returns 409, and processing failures return 500 with a visible
+error and details in container logs. A failed run can have partially indexed
+episodes; it is not rolled back automatically. Successful runs return HTTP 200.
+The results page is not cached and does not display the cron key. Keep the URL
+private because possession of its key allows triggering the job.
+
 ## Build, test, and publish
 
 ```bash
@@ -214,7 +231,7 @@ Tests use disposable, uniquely named Docker volumes and loopback-only ports.
 They exercise the real setup wizard, admin login, restart/replacement persistence,
 custom UID ownership, an **actual 1000 MiB multipart upload**, blocked private and
 uploaded-script paths, staged legacy backups/migrations, RSS enclosure URLs,
-GUID preservation, and unsupported-version rejection.
+GUID preservation, unsupported-version rejection, and cron result/error summaries.
 
 [The workflow](.github/workflows/container.yml) runs on pushes, pull requests,
 manual dispatch, and weekly. Only successful main-branch runs publish images.

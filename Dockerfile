@@ -30,6 +30,7 @@ RUN a2enconf podcastgen \
     && rm -r /var/www/html/images /var/www/html/media \
     && ln -s /data/images /var/www/html/images \
     && ln -s /data/media /var/www/html/media \
+    && cp /usr/local/lib/podcastgen/pg-cron.php /var/www/html/pg-cron.php \
     && cp /usr/local/lib/podcastgen/healthz.php /var/www/html/healthz.php
 
 LABEL org.opencontainers.image.title="PodcastGenerator" \
